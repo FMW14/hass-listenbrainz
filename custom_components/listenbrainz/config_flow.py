@@ -4,6 +4,7 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_TOKEN, CONF_USERNAME
+from .const import CONF_API_URL
 from homeassistant.helpers import selector
 
 from liblistenbrainz.errors import ListenBrainzAPIException
@@ -28,24 +29,33 @@ class ListenBrainzFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle a flow initialized by the user."""
         _errors = {}
         if user_input is not None:
-            try:
-                await self._test_credentials(
-                    username=user_input[CONF_USERNAME],
-                    token=user_input.get(CONF_API_TOKEN, None),
-                )
-            except ListenBrainzUnknownUserException:
-                LOGGER.warning(
-                    "Could not complete setup: User '%s' does not exist", user_input[CONF_USERNAME])
-                _errors[CONF_USERNAME] = "unknown_user"
-            except ListenBrainzInvalidTokenException:
-                LOGGER.warning("Could not complete setup: Invalid token")
-                _errors[CONF_API_TOKEN] = "invalid_token"
-            except ListenBrainzAPIException as e:
-                LOGGER.exception(e)
-                _errors["base"] = "api"
+            # Validate API URL format
+            api_url = user_input.get(CONF_API_URL, "")
+            if not (api_url.startswith("http://") or api_url.startswith("https://")):
+                _errors[CONF_API_URL] = "invalid_url"
             else:
-                await self.async_set_unique_id(user_input[CONF_USERNAME])
-                self._abort_if_unique_id_configured()
+                try:
+                    await self._test_credentials(
+                        username=user_input[CONF_USERNAME],
+                        token=user_input.get(CONF_API_TOKEN, None),
+                        base_url=api_url,
+                    )
+                except ListenBrainzUnknownUserException:
+                    LOGGER.warning(
+                        "Could not complete setup: User '%s' does not exist", user_input[CONF_USERNAME])
+                    _errors[CONF_USERNAME] = "unknown_user"
+                except ListenBrainzInvalidTokenException:
+                    LOGGER.warning("Could not complete setup: Invalid token")
+                    _errors[CONF_API_TOKEN] = "invalid_token"
+                except ListenBrainzAPIException as e:
+                    LOGGER.exception(e)
+                    _errors["base"] = "api"
+
+
+
+                else:
+                        await self.async_set_unique_id(user_input[CONF_USERNAME])
+                        self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=user_input[CONF_USERNAME], data=user_input
                 )
@@ -67,6 +77,14 @@ class ListenBrainzFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.PASSWORD
                         ),
                     ),
+                    vol.Required(
+                        CONF_API_URL,
+                        default="https://api.listenbrainz.org"
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT
+                        ),
+                    ),
                 }
             ),
             errors=_errors,
@@ -75,11 +93,12 @@ class ListenBrainzFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-    async def _test_credentials(self, username: str, token: str | None) -> None:
+    async def _test_credentials(self, username: str, token: str | None, base_url: str | None = None) -> None:
         """Validate credentials."""
         client = ListenBrainzApiClient(
             hass=self.hass,
             username=username,
             token=token,
+            base_url=base_url,
         )
         await client.validate_input()

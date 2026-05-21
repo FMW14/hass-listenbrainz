@@ -10,6 +10,7 @@ from time import time
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_TOKEN, CONF_USERNAME, Platform
+from .const import CONF_API_URL
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.typing import ConfigType
@@ -94,6 +95,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass=hass,
             username=entry.data[CONF_USERNAME],
             token=entry.data.get(CONF_API_TOKEN, None),
+            base_url=entry.data.get(CONF_API_URL, None),
         ),
         username=entry.data[CONF_USERNAME],
     )

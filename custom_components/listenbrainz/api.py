@@ -62,12 +62,13 @@ class ListenBrainzApiClient:
         hass: HomeAssistant,
         username: str,
         token: str | None,
+        base_url: str | None = None,
     ) -> None:
         """Listenbrainz API Client."""
         self._hass = hass
         self._username = username
         self._token = token
-        self.client = ListenBrainz()
+        self.client = ListenBrainz(api_base_url=base_url)
 
         if self._token is not None:
             try:
